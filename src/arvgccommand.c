@@ -101,12 +101,15 @@ arv_gc_command_execute (ArvGcCommand *gc_command, GError **error)
 	genicam = arv_gc_node_get_genicam (ARV_GC_NODE (gc_command));
 	g_return_if_fail (ARV_IS_GC (genicam));
 
+	g_print("GC_EXEC about to check value.\n");
 	if (gc_command->value == NULL)
 		return;
 
+	g_print("GC_EXEC passed value check.\n");
         if (!arv_gc_feature_node_check_write_access (ARV_GC_FEATURE_NODE (gc_command), error))
                 return;
 
+	g_print("GC_EXEC passed write access check.\n");
 	command_value = arv_gc_property_node_get_int64 (gc_command->command_value, &local_error);
 
 	if (local_error != NULL) {
@@ -114,6 +117,7 @@ arv_gc_command_execute (ArvGcCommand *gc_command, GError **error)
                                             arv_gc_feature_node_get_name (ARV_GC_FEATURE_NODE (gc_command)));
 		return;
 	}
+	g_print("GC_EXEC passed node get error check.\n");
 
 	arv_gc_feature_node_increment_change_count (ARV_GC_FEATURE_NODE (gc_command));
 	arv_gc_property_node_set_int64 (gc_command->value, command_value, &local_error);

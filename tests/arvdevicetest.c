@@ -54,11 +54,14 @@ main (int argc, char **argv)
 	ArvBuffer *buffer;
 	GOptionContext *context;
 	GError *error = NULL;
-	char memory_buffer[100000];
+	//char memory_buffer[100000];
+	char *memory_buffer;
 	int i;
 	unsigned buffer_count = 0;
 	guint64 start_time, time;
 
+	memory_buffer = malloc(sizeof( char) * 40000000);
+	
 	context = g_option_context_new (NULL);
 	g_option_context_add_main_entries (context, arv_option_entries, NULL);
 
@@ -185,6 +188,50 @@ main (int argc, char **argv)
 			g_print ("reverse x           = %s\n", v_boolean ? "TRUE" : "FALSE");
 		}
 
+		node = arv_gc_get_node (genicam, "AcquisitionMode");
+		if (ARV_IS_GC_NODE(node))
+		  {
+		    guint n_values;
+		    const char **v_enum_str;
+		    v_enum_str = arv_gc_enumeration_dup_available_display_names ( ARV_GC_ENUMERATION(node), &n_values, NULL);
+		    g_print("Acquisition Modes:\n");
+		    for (guint val_idx = 0; val_idx < n_values; val_idx++)
+		      {
+			g_print("%u: %s\n", val_idx, v_enum_str[val_idx]);
+		      }
+
+		      arv_gc_enumeration_set_int_value( ARV_GC_ENUMERATION(node), 0, &error);
+		      if (error)
+			{
+			  printf("Setting acquisition mode error: %s\n", error->message);
+			}
+		  }
+
+		node = arv_gc_get_node (genicam, "TriggerMode");
+		if (ARV_IS_GC_NODE(node))
+		  {
+		    guint n_values;
+		    const char **v_enum_str;
+		    v_enum_str = arv_gc_enumeration_dup_available_display_names ( ARV_GC_ENUMERATION(node), &n_values, NULL);
+		    g_print("Trigger Modes:\n");
+		    for (guint val_idx = 0; val_idx < n_values; val_idx++)
+		      {
+			g_print("%u: %s\n", val_idx, v_enum_str[val_idx]);
+		      }
+
+		      arv_gc_enumeration_set_int_value( ARV_GC_ENUMERATION(node), 0, NULL);
+		  }
+
+		node = arv_gc_get_node(genicam, "ExposureTime");
+		arv_gc_float_set_value(ARV_GC_FLOAT(node), 200000, NULL);
+
+		node = arv_gc_get_node(genicam, "AcquisitionFrameRate");
+		arv_gc_float_set_value(ARV_GC_FLOAT(node), 3, &error);
+
+		if (error)
+		  {
+		    g_print("Frame rate error: %s\n", error->message);
+		  }
 		stream = arv_device_create_stream (device, NULL, NULL, NULL, NULL);
 		if (arv_option_auto_buffer)
 			g_object_set (stream,
@@ -211,7 +258,15 @@ main (int argc, char **argv)
 					ARV_GVBS_USER_DEFINED_NAME_SIZE, memory_buffer, NULL);
 
 		node = arv_gc_get_node (genicam, "AcquisitionStart");
-		arv_gc_command_execute (ARV_GC_COMMAND (node), NULL);
+		arv_gc_command_execute (ARV_GC_COMMAND (node), &error);
+		if (error == NULL)
+		  {
+		    g_print("Null reported for gc error\n");
+		  }
+		else
+		  {
+		    g_print("AcquisitionStart error: %s\n", error->message);
+		  }
 
 		signal (SIGINT, set_cancel);
 
@@ -222,6 +277,7 @@ main (int argc, char **argv)
 			do  {
 				buffer = arv_stream_try_pop_buffer (stream);
 				if (buffer != NULL) {
+				  printf("Got an image!\n");
 					arv_stream_push_buffer (stream, buffer);
 					buffer_count++;
 				}

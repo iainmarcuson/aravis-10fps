@@ -453,6 +453,7 @@ arv_gv_device_heartbeat_thread (void *data)
 	gboolean use_poll;
 	GTimer *timer;
 	guint32 value;
+	guint32 heartbeat_value;
 
 	timer = g_timer_new ();
 
@@ -480,6 +481,9 @@ arv_gv_device_heartbeat_thread (void *data)
 				counter++;
 			}
 
+			_read_register (io_data, ARV_GVBS_HEARTBEAT_TIMEOUT_OFFSET, &heartbeat_value, NULL);
+			arv_debug_device("[GvDevice::Heartbeat] Timeout value = %d", heartbeat_value);
+			
 			if (!g_cancellable_is_cancelled (thread_data->cancellable)) {
 				arv_debug_device ("[GvDevice::Heartbeat] Ack value = %d", value);
 

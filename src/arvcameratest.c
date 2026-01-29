@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <stdio.h>
+#include <stdint.h>
+#include <winsock.h>
 
 #define N_BUFFERS       5
 
@@ -278,21 +280,96 @@ set_cancel (int signal)
 }
 
 static void
+unpack2(unsigned char *source, uint16_t *dest)
+{
+  uint32_t holding;
+
+  memcpy(&holding, source, 4);
+
+  holding = ntohl(holding);
+  
+  dest[0] = (uint16_t) ((holding >> 12) & 0xfff);
+  dest[1] = (uint16_t) (holding & 0xfff);
+  return;
+}
+
+static void
+unpack_wide(unsigned char *source, uint16_t *dest, uint32_t in_width, uint32_t in_height)
+{
+  uint32_t pixel_count = 0;
+  uint32_t out_col_offset = in_width;
+  size_t bytes_processed = 0;
+  size_t step_size = 3;
+  uint8_t hi_byte; 		// The byte containing the high-gain MSNibbles
+  uint8_t mid_byte;		// The byte in the middle of packed data
+  uint8_t lo_byte;              // The byte containing the low-gain MSNibbles
+  size_t base_offset;
+  uint16_t lo_pixel;
+  uint16_t hi_pixel;
+
+  for (uint32_t row_idx = 0; row_idx < in_height; row_idx++)
+    {
+      //printf("Processsing Row %u\n", row_idx);
+      base_offset = row_idx * in_width*2; // Where we start putting in the dadta
+      for (uint32_t col_idx = 0; col_idx < in_width; col_idx++)
+	{
+	  lo_byte = source[bytes_processed++];
+	  mid_byte = source[bytes_processed++];
+	  hi_byte = source[bytes_processed++]; // Read in the next three bytes
+
+	  hi_pixel = ((hi_byte & 0xFF)<<4) + ((mid_byte & 0xf0) >> 4);
+	  lo_pixel = ((lo_byte & 0xFF)<<4) + ((mid_byte & 0x0f));
+
+	  dest[base_offset+col_idx] = lo_pixel;
+	  dest[base_offset+out_col_offset+col_idx] = hi_pixel;
+	}
+    }
+
+  return;
+}
+
+static void
+unpack_us(unsigned char *source, uint16_t *dest)
+{
+  uint32_t holding;
+
+  memcpy(&holding, source, 4);
+
+  holding = ntohl(holding);
+  
+  dest[0] = (uint16_t) ((holding >> 12) & 0xfff);
+  return;
+}
+
+static void
 new_buffer_cb (ArvStream *stream, ApplicationData *data)
 {
 	ArvBuffer *buffer;
-
+	guint8 *image_data;
+	size_t size = 0;
+	uint16_t *out_data;
+	uint32_t img_width = arv_option_width;
+	uint32_t img_height = arv_option_height;
+	
 	buffer = arv_stream_try_pop_buffer (stream);
+	
 	if (buffer != NULL) {
 		if (arv_buffer_get_status (buffer) == ARV_BUFFER_STATUS_SUCCESS) {
-			size_t size = 0;
 			data->buffer_count++;
-			arv_buffer_get_data (buffer, &size);
+			image_data = arv_buffer_get_data (buffer, &size); // This is the line that gets the actual image from data.  DATA also can contain metadata in the chunks.  The size in bytes is put in size.
 			data->transferred += size;
 		} else {
 			data->error_count++;
 		}
 
+		out_data = malloc(sizeof(uint16_t)*img_width*img_height); // The data are Packed12, with 2 output pixels per 3 bytes, and the two images going side-by-side
+		if (out_data == NULL)
+		  {
+		    printf("Error allocating memory for image.\n");
+		  }
+
+		printf("Expected image size %uWx%uH\n", img_width*2, img_height);
+		
 		if (arv_buffer_has_chunks (buffer) && data->chunks != NULL) {
 			int i;
 
@@ -320,8 +397,55 @@ new_buffer_cb (ArvStream *stream, ApplicationData *data)
 
 		/* Image processing here */
 
+		if (image_data) // Process the actual data
+		  {
+		    gint64 curr_time;
+		    curr_time = g_get_monotonic_time();
+
+		    curr_time = curr_time / 1000000; /* Convert to seconds */
+		    
+		    if ((curr_time % 10) == 0) // Save an image on 10-second intervals
+		      {
+			FILE *img_file;
+			char filename[100];
+			uint32_t num_chunks;
+			uint32_t step_size;
+			uint32_t pixel_count;
+			uint32_t total_offset;
+			
+			sprintf(filename, "%u.raw", (uint32_t) (curr_time & 0xffffffff));
+			num_chunks = size/3; // 3 bytes in a chunk
+			step_size = 3;
+			total_offset = 0;
+			pixel_count = 0;
+			//printf("There are %u chunks, and a calculated %u pixels.\n", num_chunks, (uint32_t)(size/3) );
+
+			unpack_wide(image_data, out_data, img_width/2, img_height);
+			/*
+			for (uint32_t chunk_idx; chunk_idx < num_chunks; chunk_idx++)
+			  {
+			    unpack_us(&image_data[total_offset], &out_data[pixel_count]);
+			    total_offset += step_size; // Advance the read pointer
+			    pixel_count += 1; // Two pixels in a chunk;
+			  }
+			*/
+			
+			img_file = fopen(filename, "ab"); // Append to save the burst that arrives in the second.
+			fwrite(out_data, 2, size/3*2, img_file);  // Total uint16_t pixels * 2 bytes per pixel is the number of bytes in the image
+			fclose(img_file);
+			sprintf(filename, "%u_base.raw", (uint32_t) (curr_time & 0xffffffff));
+			img_file = fopen(filename, "ab");
+			fwrite(image_data, 1, size, img_file);
+			fclose(img_file);
+			free(out_data);
+		      }
+		  }
 		arv_stream_push_buffer (stream, buffer);
 	}
+	else
+	  {
+	    printf("Buffer is NULL\n");
+	  }
 }
 
 static void
