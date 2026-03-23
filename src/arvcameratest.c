@@ -362,13 +362,16 @@ new_buffer_cb (ArvStream *stream, ApplicationData *data)
 			data->error_count++;
 		}
 
-		out_data = malloc(sizeof(uint16_t)*img_width*img_height); // The data are Packed12, with 2 output pixels per 3 bytes, and the two images going side-by-side
+		if (image_data)
+		  {
+		    out_data = malloc(sizeof(uint16_t)*img_width*img_height); // The data are Packed12, with 2 output pixels per 3 bytes, and the two images going side-by-side
+		  }
 		if (out_data == NULL)
 		  {
 		    printf("Error allocating memory for image.\n");
 		  }
 
-		printf("Expected image size %uWx%uH\n", img_width*2, img_height);
+		//printf("Expected image size %uWx%uH\n", img_width*2, img_height);
 		
 		if (arv_buffer_has_chunks (buffer) && data->chunks != NULL) {
 			int i;
@@ -404,7 +407,7 @@ new_buffer_cb (ArvStream *stream, ApplicationData *data)
 
 		    curr_time = curr_time / 1000000; /* Convert to seconds */
 		    
-		    if ((curr_time % 10) == 0) // Save an image on 10-second intervals
+		    if (1 && ((curr_time % 10) == 0)) // Save an image on 10-second intervals
 		      {
 			FILE *img_file;
 			char filename[100];
@@ -437,8 +440,9 @@ new_buffer_cb (ArvStream *stream, ApplicationData *data)
 			img_file = fopen(filename, "ab");
 			fwrite(image_data, 1, size, img_file);
 			fclose(img_file);
-			free(out_data);
+			
 		      }
+		    free(out_data);
 		  }
 		arv_stream_push_buffer (stream, buffer);
 	}
@@ -467,14 +471,14 @@ periodic_task_cb (void *abstract_data)
 {
 	ApplicationData *data = abstract_data;
 
-	printf ("%3d frame%s - %7.3g MiB/s",
-		data->buffer_count,
-		data->buffer_count > 1 ? "s/s" : "/s ",
-		(double) data->transferred / 1e6);
-	if (data->error_count > 0)
-		printf (" - %d error%s\n", data->error_count, data->error_count > 1 ? "s" : "");
-	else
-		printf ("\n");
+	//printf ("%3d frame%s - %7.3g MiB/s",
+	//	data->buffer_count,
+	//	data->buffer_count > 1 ? "s/s" : "/s ",
+	//	(double) data->transferred / 1e6);
+	//if (data->error_count > 0)
+	//	printf (" - %d error%s\n", data->error_count, data->error_count > 1 ? "s" : "");
+	//else
+	//	printf ("\n");
 	data->buffer_count = 0;
 	data->error_count = 0;
 	data->transferred = 0;
@@ -883,6 +887,7 @@ main (int argc, char **argv)
 
                                     g_main_loop_unref (data.main_loop);
 
+				    /*
                                     arv_stream_get_statistics (stream, &n_completed_buffers, &n_failures, &n_underruns);
 
                                     for (i = 0; i < arv_stream_get_n_infos (stream); i++) {
@@ -892,7 +897,8 @@ main (int argc, char **argv)
                                                              arv_stream_get_info_uint64 (stream, i));
                                             }
                                     }
-
+				    */
+				    
                                     arv_camera_stop_acquisition (camera, NULL);
 
                                     arv_stream_set_emit_signals (stream, FALSE);
