@@ -49,6 +49,8 @@ static char *arv_option_gv_port_range = NULL;
 static gboolean arv_option_native_buffers = FALSE;
 static char *arv_option_gv_discovery_interface = NULL;
 
+static int gPopImageCnt = 0;
+
 /* clang-format off */
 static const GOptionEntry arv_option_entries[] =
 {
@@ -358,9 +360,12 @@ new_buffer_cb (ArvStream *stream, ApplicationData *data)
 			data->buffer_count++;
 			image_data = arv_buffer_get_data (buffer, &size); // This is the line that gets the actual image from data.  DATA also can contain metadata in the chunks.  The size in bytes is put in size.
 			data->transferred += size;
+			//printf("Image %i: successful.\n", gPopImageCnt);
 		} else {
 			data->error_count++;
+			//printf("Image %i: failed.\n", gPopImageCnt);
 		}
+		gPopImageCnt++;
 
 		if (image_data)
 		  {
@@ -471,14 +476,18 @@ periodic_task_cb (void *abstract_data)
 {
 	ApplicationData *data = abstract_data;
 
-	//printf ("%3d frame%s - %7.3g MiB/s",
-	//	data->buffer_count,
-	//	data->buffer_count > 1 ? "s/s" : "/s ",
-	//	(double) data->transferred / 1e6);
-	//if (data->error_count > 0)
-	//	printf (" - %d error%s\n", data->error_count, data->error_count > 1 ? "s" : "");
-	//else
-	//	printf ("\n");
+/*
+	printf ("%3d frame%s - %7.3g MiB/s",
+		data->buffer_count,
+		data->buffer_count > 1 ? "s/s" : "/s ",
+		(double) data->transferred / 1e6);
+*/
+/*
+	if (data->error_count > 0)
+		printf (" - %d error%s\n", data->error_count, data->error_count > 1 ? "s" : "");
+	else
+		printf ("\n");
+*/
 	data->buffer_count = 0;
 	data->error_count = 0;
 	data->transferred = 0;
@@ -887,7 +896,7 @@ main (int argc, char **argv)
 
                                     g_main_loop_unref (data.main_loop);
 
-				    /*
+				    
                                     arv_stream_get_statistics (stream, &n_completed_buffers, &n_failures, &n_underruns);
 
                                     for (i = 0; i < arv_stream_get_n_infos (stream); i++) {
@@ -897,7 +906,7 @@ main (int argc, char **argv)
                                                              arv_stream_get_info_uint64 (stream, i));
                                             }
                                     }
-				    */
+				    
 				    
                                     arv_camera_stop_acquisition (camera, NULL);
 
